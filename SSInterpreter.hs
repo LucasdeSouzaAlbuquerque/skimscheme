@@ -212,6 +212,15 @@ unpackNum (Number n) = n
 --- unpackNum a = ... -- Should never happen!!!!
 
 -----------------------------------------------------------
+--                 PLAYER MADE FUNCTIONS                 --
+-----------------------------------------------------------
+madeIf :: Bool -> LispVal -> LispVal -> LispVal
+madeIf b x y = if b then x
+               else y
+
+--madeRec :: 
+
+-----------------------------------------------------------
 --                     main FUNCTION                     --
 -----------------------------------------------------------
 
