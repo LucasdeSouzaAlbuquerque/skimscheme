@@ -46,7 +46,7 @@ eval env val@(Number _) = return val
 eval env val@(Bool _) = return val
 eval env (List [Atom "quote", val]) = return val
 eval env (List (Atom "begin":[v])) = eval env v
-eval env (List (Atom "begin": l: ls)) = (eval env l) >>= (\v -> case v of { (error@(Error _)) -> return error; otherwise -> eval env (List (Atom "begin": ls))})
+eval env (List (Atom "begin": l: ls)) = (eval env l) >>= (\v -> case v of {(error@(Error _)) -> return error; otherwise -> eval env (List (Atom "begin": ls))})
 eval env (List (Atom "begin":[])) = return (List [])
 eval env lam@(List (Atom "lambda":(List formals):body:[])) = return lam
 -- The following line is slightly more complex because we are addressing the
@@ -58,6 +58,32 @@ eval env (List (Atom "define": args)) = maybe (define env args) (\v -> return v)
 eval env (List (Atom func : args)) = mapM (eval env) args >>= apply env func 
 eval env (Error s)  = return (Error s)
 eval env form = return (Error ("Could not eval the special form: " ++ (show form)))
+
+-----------------------------------------------------------
+--                   PLAYER MADE EVAL                    --
+-----------------------------------------------------------
+-- if/else
+eval env (List (Atom "if":check:ifTrue:[])) = (eval env check) >>= (\p -> case p of {(error@(Error _)) -> return error; (Bool True) -> eval env ifTrue; otherwise -> return (Bool False)})
+eval env (List (Atom "if":check:ifTrue:ifFalse:[])) = (eval env check) >>= (\p -> case p of {(Bool True) -> eval env ifTrue; (Bool False) -> eval env ifFalse; otherwise -> return (Error "Is it a conditional?")})
+
+-- recurs
+
+
+-- let
+-- eval env (List (Atom "let":(List bind):body:[])) = 
+
+-- set!
+-- 
+
+-- eqv?
+
+
+-- closure
+
+
+-----------------------------------------------------------
+--                   INTERPRETER (CONT)                  --
+-----------------------------------------------------------
 
 stateLookup :: StateT -> String -> StateTransformer LispVal
 stateLookup env var = ST $ 
@@ -120,11 +146,16 @@ environment =
             insert "number?"        (Native predNumber)
           $ insert "boolean?"       (Native predBoolean)
           $ insert "list?"          (Native predList)
-          $ insert "+"              (Native numericSum) 
-          $ insert "*"              (Native numericMult) 
-          $ insert "-"              (Native numericSub) 
-          $ insert "car"            (Native car)           
-          $ insert "cdr"            (Native cdr)           
+          $ insert "+"              (Native numericSum)
+          $ insert "*"              (Native numericMult)
+          $ insert "-"              (Native numericSub)
+          $ insert "car"            (Native car)          
+          $ insert "cdr"            (Native cdr)
+          $ insert "comment"        (Native comment)
+          $ insert "cons"           (Native cons)
+          $ insert "it?"            (Native lessThan)
+          $ insert "/"              (Native numericDiv)
+          $ insert "eqv?"           (Native eqv)
             empty
 
 type StateT = Map String LispVal
@@ -143,7 +174,7 @@ instance Monad StateTransformer where
                                  (ST resF) = f v
                              in  resF newS
                       )
-    
+
 -----------------------------------------------------------
 --          HARDWIRED PREDEFINED LISP FUNCTIONS          --
 -----------------------------------------------------------
@@ -212,13 +243,43 @@ unpackNum (Number n) = n
 --- unpackNum a = ... -- Should never happen!!!!
 
 -----------------------------------------------------------
---                 PLAYER MADE FUNCTIONS                 --
+--                 PLAYER MADE FUNCTION                  --
 -----------------------------------------------------------
-madeIf :: Bool -> LispVal -> LispVal -> LispVal
-madeIf b x y = if b then x
-               else y
+-- comment -- checar como usar
+comment :: [LispVal] -> LispVal
+comment _ = List []
 
---madeRec :: 
+-- cons -- checar
+cons :: [LispVal] -> LispVal
+cons ((l):(List ls):[]) = List (l:ls)
+cons ((dl):(DottedList dls d):[]) = DottedList (dl:dls) d
+cons _ = Error "wrong type"
+
+-- lessThan
+lt :: [LispVal] -> Bool
+lt ((Number f):(Number l):[]) = if f < l then True
+              else False
+
+lessThan :: [LispVal] -> LispVal
+lessThan x = if (length x == 2) && (onlyNumbers x) then Bool (lt x)
+             else Error "wrong type"
+
+-- numericDiv
+numericDiv :: [LispVal] -> LispVal
+numericDiv [] = Number 1
+numericDiv l = numericBinOp (div) l
+
+-- eqv
+eqv :: [LispVal] -> LispVal
+eqv ((Atom x):(Atom y):[]) = Bool (x == y)
+eqv ((List []):(List [])) = Bool True
+eqv ((List (x:xs)):(List (y:ys)):[]) = Bool ((x == y) && eqv (xs:ys:[]))
+eqv ((DottedList [] d1):(DottedList [] d2)) = Bool (d1 == d2)
+eqv ((DottedList (x:xs) d1):(DottedList (y:ys) d2):[]) = Bool ((x == y) && (d1 == d2) && (eqv (xs:ys:[])))
+eqv ((Number x):(Number y):[]) = Bool (x == y)
+eqv ((String x):(String y):[]) = Bool (x == y)
+eqv ((Bool x):(Bool y):[]) = Bool (x == y)
+eqv _ = (Bool False)
 
 -----------------------------------------------------------
 --                     main FUNCTION                     --
