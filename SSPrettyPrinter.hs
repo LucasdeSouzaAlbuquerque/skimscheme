@@ -17,6 +17,7 @@ instance Show LispVal where
   show (DottedList h t) = "(" ++ showListContents h ++ " . " ++ show t ++ ")"  
   show (Native p) = "<native procedure>"
   show (Error s) = s
+  show (State s) = show s
   
 -- This function could be replaced by (unwords.map show). The unwords
 -- function takes a list of String values and uses them to build a 

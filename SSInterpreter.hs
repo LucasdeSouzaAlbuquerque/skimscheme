@@ -41,7 +41,7 @@ import SSPrettyPrinter
 -----------------------------------------------------------
 eval :: StateT -> LispVal -> StateTransformer LispVal
 eval env val@(String _) = return val
-eval env val@(Atom var) = stateLookup env var 
+eval env val@(Atom var) = stateLookup env var
 eval env val@(Number _) = return val
 eval env val@(Bool _) = return val
 eval env (List [Atom "quote", val]) = return val
@@ -50,12 +50,32 @@ eval env (List (Atom "begin": l: ls)) = (eval env l) >>= (\v -> case v of {(erro
 eval env (List (Atom "begin":[])) = return (List [])
 eval env lam@(List (Atom "lambda":(List formals):body:[])) = return lam
 
--- if/else
+-- if
 eval env (List (Atom "if":check:ifTrue:[])) = (eval env check) >>= (\p -> case p of {(error@(Error _)) -> return error; (Bool True) -> eval env ifTrue; otherwise -> return (Bool False)})
 eval env (List (Atom "if":check:ifTrue:ifFalse:[])) = (eval env check) >>= (\p -> case p of {(Bool True) -> eval env ifTrue; (Bool False) -> eval env ifFalse; otherwise -> return (Error "Is it a conditional?")})
 
+-- let
+eval env (List (Atom "let":(List vars):expr:[])) = ST (\s -> 
+	    let current  = union env s; -- (env + state until the let)
+		    extended = prepareState current env vars; -- (env + state until let) + let definitions
+		    (ST f) = eval extended expr; 
+		    (result, newState) = f s; -- state after let execution
+		    afterState = union (difference newState extended) current; -- this removes all variables that were defined on the let procedure
+		in (result, afterState)
+	  );
+
+-- set!
+eval env (List (Atom "set!":(Atom id):expr:[])) = stateLookup env id >>= (\v -> case v of {
+  (Error err) -> return $ Error "Variavel não declarada";
+  otherwise -> defineVar env id expr})
+
+eval env (List (Atom "set!":_:expr:[])) = return $ Error "Variável não é um identificador"
+
 -- comment
 eval env (List (Atom "comment":_:[])) = return (List [])
+
+-- make-closure
+eval env clousure@(List (Atom "make-closure":(lam@(List (Atom "lambda":(List formals):body:[]))):[])) = return $ List [(State env) , lam]
 
 -- The following line is slightly more complex because we are addressing the
 -- case where define is redefined by the user (whatever is the user's reason
@@ -63,37 +83,16 @@ eval env (List (Atom "comment":_:[])) = return (List [])
 -- the same semantics as redefining other functions, since define is not
 -- stored as a regular function because of its return type.
 eval env (List (Atom "define": args)) = maybe (define env args) (\v -> return v) (Map.lookup "define" env)
-eval env (List (Atom func : args)) = mapM (eval env) args >>= apply env func 
+eval env (List (Atom func : args)) = mapM (eval env) args >>= apply env func
 eval env (Error s)  = return (Error s)
 eval env form = return (Error ("Could not eval the special form: " ++ (show form)))
-
-
--- recurs
-
-
--- let
--- eval env (List (Atom "let":(List bind):body:[])) = 
-
--- set!
--- 
-
--- eqv?
-
-
--- closure
-
-
------------------------------------------------------------
---                   INTERPRETER (CONT)                  --
------------------------------------------------------------
 
 stateLookup :: StateT -> String -> StateTransformer LispVal
 stateLookup env var = ST $ 
   (\s -> 
-    (maybe (Error "variable does not exist.") 
-           id (Map.lookup var (union s env) 
+    (maybe (Error "variable does not exist.")
+           id (Map.lookup var (union s env)
     ), s))
-
 
 -- Because of monad complications, define is a separate function that is not
 -- included in the state of the program. This saves  us from having to make
@@ -104,7 +103,11 @@ stateLookup env var = ST $
 define :: StateT -> [LispVal] -> StateTransformer LispVal
 define env [(Atom id), val] = defineVar env id val
 define env [(List [Atom id]), val] = defineVar env id val
--- define env [(List l), val]                                       
+
+-- recursão
+define env ((List (Atom id:formals)):body:[]) = defineVar env id (List [Atom "lambda",(List formals), body]) --define recursion as procedural using lambda
+
+-- define env [(List l), val]
 define env args = return (Error "wrong number of arguments")
 defineVar env id val = 
   ST (\s -> let (ST f)    = eval env val
@@ -112,22 +115,26 @@ defineVar env id val =
             in (result, (insert id result newState))
      )
 
-
 -- The maybe function yields a value of type b if the evaluation of 
 -- its third argument yields Nothing. In case it yields Just x, maybe
 -- applies its second argument f to x and yields (f x) as its result.
 -- maybe :: b -> (a -> b) -> Maybe a -> b
 apply :: StateT -> String -> [LispVal] -> StateTransformer LispVal
-apply env func args =  
+apply env func args = 
                   case (Map.lookup func env) of
                       Just (Native f)  -> return (f args)
-                      otherwise -> 
-                        (stateLookup env func >>= \res -> 
-                          case res of 
-                            List (Atom "lambda" : List formals : body:l) -> lambda env formals body args                              
+                      otherwise ->
+                        (stateLookup env func >>= \res ->
+                          case res of
+                            List (Atom "lambda" : List formals : body:l) -> lambda env formals body args
+                            List [State s , List (Atom "lambda" : List formals : body:l)] -> ST (\sp -> 
+                              let (ST fx) = lambda s formals body args;
+                                  (res, newState) = fx s;
+                              in (res, insert func (List [State newState, List (Atom "lambda" : List formals : body:l) ]) sp )
+                              )
                             otherwise -> return (Error $ func ++ " not a function.")
                         )
- 
+
 -- The lambda function is an auxiliary function responsible for
 -- applying user-defined functions, instead of native ones. We use a very stupid 
 -- kind of dynamic variable (parameter) scoping that does not even support
@@ -137,6 +144,13 @@ lambda env formals body args =
   let dynEnv = Prelude.foldr (\(Atom f, a) m -> Map.insert f a m) env (zip formals args)
   in  eval dynEnv body
 
+-- auxiliar methods for let
+prepareState :: StateT -> StateT -> [LispVal] -> StateT
+prepareState env1 env2 ((List ((Atom id):val:[]):[])) = insert id (getValFromST (eval env1 val) env1) env2
+prepareState env1 env2 ((List ((Atom id):val:[]):ls)) = prepareState env1 (insert id (getValFromST (eval env1 val) env1) env2) ls
+
+getValFromST :: StateTransformer LispVal -> StateT -> LispVal
+getValFromST (ST f) env = fst $ (f env)
 
 -- Initial environment of the programs. Maps identifiers to values. 
 -- Initially, maps function names to function values, but there's 
@@ -144,17 +158,17 @@ lambda env formals body args =
 -- constants, such as pi). The initial environment includes all the 
 -- functions that are available for programmers.
 environment :: Map String LispVal
-environment =   
+environment = 
             insert "number?"        (Native predNumber)
           $ insert "boolean?"       (Native predBoolean)
           $ insert "list?"          (Native predList)
           $ insert "+"              (Native numericSum)
           $ insert "*"              (Native numericMult)
           $ insert "-"              (Native numericSub)
-          $ insert "car"            (Native car)          
+          $ insert "car"            (Native car)
           $ insert "cdr"            (Native cdr)
           $ insert "cons"           (Native cons)
-          $ insert "it?"            (Native lessThan)
+          $ insert "lt?"            (Native lessThan)
           $ insert "/"              (Native numericDiv)
           $ insert "eqv?"           (Native eqv)
             empty
@@ -230,15 +244,15 @@ numericSub l = numericBinOp (-) l
 -- addressed floating-point numbers.
 
 numericBinOp :: (Integer -> Integer -> Integer) -> [LispVal] -> LispVal
-numericBinOp op args = if onlyNumbers args 
-                       then Number $ foldl1 op $ Prelude.map unpackNum args 
+numericBinOp op args = if onlyNumbers args
+                       then Number $ foldl1 op $ Prelude.map unpackNum args
                        else Error "not a number."
-                       
+
 onlyNumbers :: [LispVal] -> Bool
 onlyNumbers [] = True
 onlyNumbers (Number n:ns) = onlyNumbers ns
-onlyNumbers ns = False             
-                       
+onlyNumbers ns = False
+
 unpackNum :: LispVal -> Integer
 unpackNum (Number n) = n
 --- unpackNum a = ... -- Should never happen!!!!
@@ -295,4 +309,4 @@ getResult (ST f) = f empty -- we start with an empty state.
 main :: IO ()
 main = do args <- getArgs
           putStr $ showResult $ getResult $ eval environment $ readExpr $ concat $ args 
-          
+
