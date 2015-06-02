@@ -49,6 +49,14 @@ eval env (List (Atom "begin":[v])) = eval env v
 eval env (List (Atom "begin": l: ls)) = (eval env l) >>= (\v -> case v of {(error@(Error _)) -> return error; otherwise -> eval env (List (Atom "begin": ls))})
 eval env (List (Atom "begin":[])) = return (List [])
 eval env lam@(List (Atom "lambda":(List formals):body:[])) = return lam
+
+-- if/else
+eval env (List (Atom "if":check:ifTrue:[])) = (eval env check) >>= (\p -> case p of {(error@(Error _)) -> return error; (Bool True) -> eval env ifTrue; otherwise -> return (Bool False)})
+eval env (List (Atom "if":check:ifTrue:ifFalse:[])) = (eval env check) >>= (\p -> case p of {(Bool True) -> eval env ifTrue; (Bool False) -> eval env ifFalse; otherwise -> return (Error "Is it a conditional?")})
+
+-- comment
+eval env (List (Atom "comment":_:[])) = return (List [])
+
 -- The following line is slightly more complex because we are addressing the
 -- case where define is redefined by the user (whatever is the user's reason
 -- for doing so. The problem is that redefining define does not have
@@ -59,12 +67,6 @@ eval env (List (Atom func : args)) = mapM (eval env) args >>= apply env func
 eval env (Error s)  = return (Error s)
 eval env form = return (Error ("Could not eval the special form: " ++ (show form)))
 
------------------------------------------------------------
---                   PLAYER MADE EVAL                    --
------------------------------------------------------------
--- if/else
-eval env (List (Atom "if":check:ifTrue:[])) = (eval env check) >>= (\p -> case p of {(error@(Error _)) -> return error; (Bool True) -> eval env ifTrue; otherwise -> return (Bool False)})
-eval env (List (Atom "if":check:ifTrue:ifFalse:[])) = (eval env check) >>= (\p -> case p of {(Bool True) -> eval env ifTrue; (Bool False) -> eval env ifFalse; otherwise -> return (Error "Is it a conditional?")})
 
 -- recurs
 
@@ -151,7 +153,6 @@ environment =
           $ insert "-"              (Native numericSub)
           $ insert "car"            (Native car)          
           $ insert "cdr"            (Native cdr)
-          $ insert "comment"        (Native comment)
           $ insert "cons"           (Native cons)
           $ insert "it?"            (Native lessThan)
           $ insert "/"              (Native numericDiv)
@@ -245,24 +246,16 @@ unpackNum (Number n) = n
 -----------------------------------------------------------
 --                 PLAYER MADE FUNCTION                  --
 -----------------------------------------------------------
--- comment -- checar como usar
-comment :: [LispVal] -> LispVal
-comment _ = List []
-
--- cons -- checar
+-- cons
 cons :: [LispVal] -> LispVal
 cons ((l):(List ls):[]) = List (l:ls)
-cons ((dl):(DottedList dls d):[]) = DottedList (dl:dls) d
+cons ((dn):(DottedList dl da):[]) = DottedList (da:dl) dn -- cons (newHead:(DottedList List Head))
 cons _ = Error "wrong type"
 
 -- lessThan
-lt :: [LispVal] -> Bool
-lt ((Number f):(Number l):[]) = if f < l then True
-              else False
-
 lessThan :: [LispVal] -> LispVal
-lessThan x = if (length x == 2) && (onlyNumbers x) then Bool (lt x)
-             else Error "wrong type"
+lessThan ((Number f):(Number l):[]) = Bool (f < l)
+lessThan _ = Error "wrong type"
 
 -- numericDiv
 numericDiv :: [LispVal] -> LispVal
@@ -270,16 +263,24 @@ numericDiv [] = Number 1
 numericDiv l = numericBinOp (div) l
 
 -- eqv
+getBool :: LispVal -> Bool
+getBool (Bool x) = x
+getBool _ = False
+
+eqvList :: LispVal -> LispVal -> Bool
+eqvList (List []) (List []) = True
+eqvList (List []) _ = False
+eqvList _ (List []) = False
+eqvList (List (x:xs)) (List (y:ys)) = (getBool (eqv (x:y:[]))) && (eqvList (List xs) (List ys))
+
 eqv :: [LispVal] -> LispVal
 eqv ((Atom x):(Atom y):[]) = Bool (x == y)
-eqv ((List []):(List [])) = Bool True
-eqv ((List (x:xs)):(List (y:ys)):[]) = Bool ((x == y) && eqv (xs:ys:[]))
-eqv ((DottedList [] d1):(DottedList [] d2)) = Bool (d1 == d2)
-eqv ((DottedList (x:xs) d1):(DottedList (y:ys) d2):[]) = Bool ((x == y) && (d1 == d2) && (eqv (xs:ys:[])))
+eqv ((List x):(List y):[]) = Bool (eqvList (List x) (List y))
+eqv ((DottedList b1 h1):(DottedList b2 h2):[]) = Bool ((getBool (eqv (h1:h2:[]))) && (eqvList (List b1) (List b2)))
 eqv ((Number x):(Number y):[]) = Bool (x == y)
 eqv ((String x):(String y):[]) = Bool (x == y)
 eqv ((Bool x):(Bool y):[]) = Bool (x == y)
-eqv _ = (Bool False)
+eqv _ = Error "types don't match"
 
 -----------------------------------------------------------
 --                     main FUNCTION                     --
