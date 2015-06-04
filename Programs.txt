@@ -1,0 +1,22 @@
+doubleAll:
+SSInterpreter "
+(begin 
+  (define test '(5 8 2 9 1 4))
+  (define lowerPart
+    (lambda (x p) (if (eqv? x '()) '() (if (lt? (car x) p) (cons (car x) (lowerPart (cdr x) p)) (lowerPart (cdr x) p)))
+  ))
+  (define upperPart
+    (lambda (x p) (if (eqv? x '()) '() (if (lt? p (car x)) (cons (car x) (upperPart (cdr x) p)) (upperPart (cdr x) p)))
+  ))
+  (define quicksort
+    (lambda (x) (if (eqv? x '()) '() (conc (quicksort (lowerPart (cdr x) (car x))) (cons (car x) (quicksort (upperPart (cdr x) (car x))))))
+  ))
+  (define double 
+    (lambda (x) (if (eqv? x '()) '() (cons (* (car x) 2) (double (cdr x))))
+  ))
+  (define result
+    (if (list? test) (double (quicksort test)) 
+  ))
+  result
+)
+"

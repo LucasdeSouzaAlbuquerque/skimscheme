@@ -171,6 +171,7 @@ environment =
           $ insert "lt?"            (Native lessThan)
           $ insert "/"              (Native numericDiv)
           $ insert "eqv?"           (Native eqv)
+          $ insert "conc"           (Native concatenate) -- auxiliar for quicksort
             empty
 
 type StateT = Map String LispVal
@@ -295,6 +296,11 @@ eqv ((Number x):(Number y):[]) = Bool (x == y)
 eqv ((String x):(String y):[]) = Bool (x == y)
 eqv ((Bool x):(Bool y):[]) = Bool (x == y)
 eqv _ = Error "types don't match"
+
+concatenate :: [LispVal] -> LispVal
+concatenate ((List x):(List y):[]) = List (x ++ y)
+concatenate ((DottedList x h1):(DottedList y h2):[]) = DottedList (x ++ [h2] ++ y) h1
+concatenate _ = Error "types don't match"
 
 -----------------------------------------------------------
 --                     main FUNCTION                     --
