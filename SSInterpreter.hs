@@ -1,5 +1,14 @@
 {-
 
+-- Universidade Federal de Pernambuco
+-- Centro de Informática (CIn)
+-- Alunos: Victor Sin Yu Chen & Lucas de Souza Albuquerque
+-- Login: vsyc & lsa2
+
+---
+Projeto Lisp/Haskell
+---------------------------------------------------------------------------------------------
+
 A basic interpreter for a purely functional subset of Scheme named SkimScheme.
 Part of this interpreter has been derived from the "Write Yourself a Scheme in
 48 Hours - An Introduction to Haskell through Example", by Jonathan Tang. It

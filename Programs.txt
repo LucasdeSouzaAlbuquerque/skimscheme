@@ -51,11 +51,6 @@
 --RESPOSTA: variable does not exist (can't access variable)
 
 --[11]
---NO MAKE CLOSURE
-(begin (let ((i 1) (j (/ 16 4))) (define f (lambda (x y) (begin (set! x (+ i j)) (set! j (+ x y)) j)))) (define val1 (f 1 2)) (define val2 (f 1 2)) (eqv? val1 val2))
---RESPOSTA: not a number / let not a function (doesn't identify variables)
-
---[12]
 --QUICKSORT_DOUBLE
 (begin (define test '(5 8 2 9 1 4)) (define lowerPart (lambda (x p) (if (eqv? x '()) '() (if (lt? (car x) p) (cons (car x) (lowerPart (cdr x) p)) (lowerPart (cdr x) p))))) (define upperPart (lambda (x p) (if (eqv? x '()) '() (if (lt? p (car x)) (cons (car x) (upperPart (cdr x) p)) (upperPart (cdr x) p))))) (define quicksort (lambda (x) (if (eqv? x '()) '() (conc (quicksort (lowerPart (cdr x) (car x))) (cons (car x) (quicksort (upperPart (cdr x) (car x)))))))) (define double (lambda (x) (if (eqv? x '()) '() (cons (* (car x) 2) (double (cdr x)))))) (define result (if (list? test) (double (quicksort test)))) result)
 --RESPOSTA: (2, 4, 8, 10, 16)
