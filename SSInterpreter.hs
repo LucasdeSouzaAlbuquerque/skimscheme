@@ -85,8 +85,9 @@ eval env (List (Atom "let":(List letVars):letExpr:[])) = ST (\initialState ->
         let curr  = union env initialState; -- cria um estado Current que é a união entre o ‘environment’ do programa com o estado até o Let;
             letState = makeState curr env letVars; -- chama uma função que estende o estado Current com as ‘definições’ dentro do Let; 
             (ST function) = eval letState letExpr; -- valoriza a expressão dentro do Let sobre o novo estado de sistema;
-            (result, postLetState) = function initialState; -- retorna o estado após a execução do bloco (estadoAnterior + regrasDoLet + mudançasNoSistema), caso alguma variável tenha sido modificada, por exemplo, aplicando a função do StateTransformer no estado S;
-            finalState = union (difference postLetState letState) curr; -- remove as ‘regras’ definidas pelo Let, para que estas não afetem fora do seu escopo. (o difference entre postLetState e letState retorna as mudanças no sistema);
+			onlyRules = makeState curr (empty) letVars;
+			(result, postLetState) = function curr; -- retorna o estado após a execução do bloco (estadoAnterior + regrasDoLet + mudançasNoSistema), caso alguma variável tenha sido modificada, por exemplo, aplicando a função do StateTransformer no estado S;
+            finalState = union (difference postLetState onlyRules) curr; -- remove as ‘regras’ definidas pelo Let, para que estas não afetem fora do seu escopo. (o difference entre postLetState e letState retorna as mudanças no sistema);
         in (result, finalState)
       ); 
 
@@ -174,11 +175,11 @@ apply env func args =
 				  -- cria um estado de Closure fazendo a intersecção do estado fornecido pela valoração da cláusura make-closure com o estado após a aplicação do lambda - ou seja, consegue apenas as mudança do sistema!
                                   (ST nextFunc) = eval newClosSt (List [Atom "define", Atom func, List [Atom "make-closure", lam]]); 
 				  -- cria um novo StateTransformer valorando a definição da função utilizada na cláusula make-closure sobre o estado criado acima de mudança do sistema - ou seja, um eventual segundo uso.
-                                  (nextRes, nextClosSt) = nextFunc $ union newSt $ union env currState; 
+                                  (nextRes, nextClosSt) = nextFunc (union newSt (union env currState)); 
 				  -- utiliza-se esta StateTransformer sobre a união do estado atual (após a aplicação do lambda) com o ambiente atual com o estado atual (ou seja, todo o estado antes, durante e após o closure)
-                                  global = union ( difference nextClosSt (difference closEnv env)) env; 
+                                  finalSt = union (difference nextClosSt closEnv) env; 
 				  -- retira-se o que à partir de agora será o global pegando-se a união da (diferença entre os estados de ambiente passados com a diferença sobre o próximo estado de closure) com o ambiente atual
-                              in (res , global) 
+                              in (res, finalSt) 
 							  -- ou seja, este apply basicamente pega e - dentro da função - consegue criar um estado no qual uma variável local pode ser tratada como global pelas funções que a chamem. Ou seja, o GLOBAL será composto das variáveis MODIFICADAS no bloco de make-closure (as não modificadas são eliminadas na diferença) MAIS o ambiente atual.
                               )                                       
                             otherwise -> return (Error $ func ++ " not a function.")

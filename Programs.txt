@@ -1,3 +1,14 @@
+{-
+
+-- Universidade Federal de Pernambuco
+-- Centro de Informática (CIn)
+-- Alunos: Victor Sin Yu Chen & Lucas de Souza Albuquerque
+-- Login: vsyc & lsa2
+
+---
+Projeto Lisp/Haskell
+---------------------------------------------------------------------------------------------
+
 --PROGRAMAS:
 
 --[1]
