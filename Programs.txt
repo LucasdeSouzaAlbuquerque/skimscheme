@@ -1,22 +1,61 @@
-doubleAll:
-SSInterpreter "
-(begin 
-  (define test '(5 8 2 9 1 4))
-  (define lowerPart
-    (lambda (x p) (if (eqv? x '()) '() (if (lt? (car x) p) (cons (car x) (lowerPart (cdr x) p)) (lowerPart (cdr x) p)))
-  ))
-  (define upperPart
-    (lambda (x p) (if (eqv? x '()) '() (if (lt? p (car x)) (cons (car x) (upperPart (cdr x) p)) (upperPart (cdr x) p)))
-  ))
-  (define quicksort
-    (lambda (x) (if (eqv? x '()) '() (conc (quicksort (lowerPart (cdr x) (car x))) (cons (car x) (quicksort (upperPart (cdr x) (car x))))))
-  ))
-  (define double 
-    (lambda (x) (if (eqv? x '()) '() (cons (* (car x) 2) (double (cdr x))))
-  ))
-  (define result
-    (if (list? test) (double (quicksort test)) 
-  ))
-  result
-)
-"
+--PROGRAMAS:
+
+--[1]
+--GLOBAL SET
+(begin (define y 10) (let ((y 3)) (define result (set! y 4))) (define result2 (+ result y)) result2)
+--RESPOSTA: 14
+
+--[2]
+--GLOBAL LET
+(begin (define x 8) (let ((x 3)) (define result x)) (define result2 (lt? result x)) result2)
+--RESPOSTA: #t
+
+--[3]
+--FIBONACCI
+(begin (define fib (lambda (n) (if (lt? n 3) 1 (+ (fib (- n 1)) (fib (- n 2)))))) (fib 6))
+--RESPOSTA: 8
+
+--[4]
+--FATORIAL
+(begin (define fat (lambda (x) (if (eqv? x 0) 1 (* x (fat (- x 1)))))) (define x 4) (fat 5))
+--RESPOSTA: 120
+
+--[5]
+--LESSTHAN/LAMBDA/COMMENT
+(begin (define y 10) (define iflt (lambda (x) (if (lt? y x) 10 14))) (comment 20) (iflt 3))
+--RESPOSTA: 14 
+ 
+--[6]
+--DOUBLEDIV
+(begin (define x (/ 25 4)) (let ((y 12)) (define result (/ y x))) result)
+--RESPOSTA: 2
+
+--[7]
+--LET/SET
+(begin (let ((x 8) (y 4)) (set! x (+ x (set! y (+ x x))))))
+--RESPOSTA: 24
+
+--[8]
+--MAKE-CLOSURE INCREMENTALIST
+(begin (define i 30) (let ((i 1)) (define f (make-closure (lambda (y) (begin (set! i (+ i y)) i))))) (define val1 (f 1)) (define val2 (f 2)) (set! i 100) (+ val1 val2))
+--RESPOSTA: 6
+
+--[9]
+--MAKE-CLOSURE DOUBLE_VALUED/EQV/LET/SET
+(begin (let ((i 1) (j (/ 16 4))) (define f (make-closure (lambda (x y) (begin (set! x (+ i j)) (set! j (+ x y)) j))))) (define val1 (f 1 2)) (define val2 (f 1 2)) (eqv? val1 val2))
+--RESPOSTA: #f
+
+--[10]
+--MAKE-CLOSURE OUT OF SCOPE
+(begin (let ((i 1) (j (/ 16 4))) (define f (make-closure (lambda (x y) (begin (set! x (+ i j)) (set! j (+ x y)) j))))) (define val1 (f 1 2)) (define val2 (f 1 2)) j)
+--RESPOSTA: variable does not exist (can't access variable)
+
+--[11]
+--NO MAKE CLOSURE
+(begin (let ((i 1) (j (/ 16 4))) (define f (lambda (x y) (begin (set! x (+ i j)) (set! j (+ x y)) j)))) (define val1 (f 1 2)) (define val2 (f 1 2)) (eqv? val1 val2))
+--RESPOSTA: not a number / let not a function (doesn't identify variables)
+
+--[12]
+--QUICKSORT_DOUBLE
+(begin (define test '(5 8 2 9 1 4)) (define lowerPart (lambda (x p) (if (eqv? x '()) '() (if (lt? (car x) p) (cons (car x) (lowerPart (cdr x) p)) (lowerPart (cdr x) p))))) (define upperPart (lambda (x p) (if (eqv? x '()) '() (if (lt? p (car x)) (cons (car x) (upperPart (cdr x) p)) (upperPart (cdr x) p))))) (define quicksort (lambda (x) (if (eqv? x '()) '() (conc (quicksort (lowerPart (cdr x) (car x))) (cons (car x) (quicksort (upperPart (cdr x) (car x)))))))) (define double (lambda (x) (if (eqv? x '()) '() (cons (* (car x) 2) (double (cdr x)))))) (define result (if (list? test) (double (quicksort test)))) result)
+--RESPOSTA: (2, 4, 8, 10, 16)
